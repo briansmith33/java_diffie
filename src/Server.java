@@ -122,57 +122,18 @@ public class Server implements Runnable {
         @Override
         public void run() {
             try {
-                BufferedReader cmdReader = new BufferedReader(new InputStreamReader(System.in));
-                out = new PrintWriter(client.getOutputStream(), true);
-                in = new BufferedReader(new InputStreamReader(client.getInputStream()));
-                boolean shellMode = false;
+                
                 perform_key_exchange();
 
-                String prompt = "\n\033[96m@@@>\033[0m ";
-
                 while (!done) {
-                    System.out.print(prompt);
-                    String command = cmdReader.readLine();
-                    out.println(encrypt(command));
-                    String response = decrypt(in.readLine());
-                    if (response.equals("DISCONNECT")) {
-                        System.out.println(response);
+                    String message = decrypt(in.readLine());
+                    System.out.println(message);
+                    if (message.equals("quit")) {
+                        out.println(encrypt("DISCONNECT"));
                         shutdown();
                         continue;
-                    }
-
-                    if (shellMode) {
-                        if (response.equals("UNSHELL")) {
-                            shellMode = false;
-                            prompt = "\n\033[96m@@@>\033[0m ";
-                            continue;
-                        }
-                        if (response.startsWith("CHANGE_DIR")) {
-                            prompt = "\n" + response.substring("CHANGE_DIR".length()) + "> ";
-                            continue;
-                        }
-                    }
-
-                    if (response.startsWith("RESPONSE")) {
-                        String line;
-                        while ((line = decrypt(in.readLine())).startsWith("RESPONSE"))
-                            System.out.println(line.substring("RESPONSE".length()));
-
-                        continue;
-                    }
-
-                    if (response.startsWith("ERROR")) {
-                        System.out.println(response.substring("ERROR".length()));
-                        continue;
-                    }
-
-                    if (response.equals("RECEIVED")) {
-                        continue;
-                    }
-
-                    if (response.startsWith("SHELL")) {
-                        shellMode = true;
-                        prompt = "\n" + response.substring("SHELL".length()) + "> ";
+                    } else {
+                        out.println(encrypt("RESPONSE"+message));
                     }
                 }
             } catch (IOException e) {

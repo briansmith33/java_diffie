@@ -15,8 +15,6 @@ import java.security.MessageDigest;
 public class Client implements Runnable {
 
     private Socket client;
-    private BufferedReader in;
-    private PrintWriter out;
     private boolean done;
     BigInteger prime = new BigInteger("1090748135619415929450294929359784500348155124953172211774101106966150168922785639028532473848836817769712164169076432969224698752674677662739994265785437233596157045970922338040698100507861033047312331823982435279475700199860971612732540528796554502867919746776983759391475987142521315878719577519148811830879919426939958487087540965716419167467499326156226529675209172277001377591248147563782880558861083327174154014975134893125116015776318890295960698011614157721282527539468816519319333337503114777192360412281721018955834377615480468479252748867320362385355596601795122806756217713579819870634321561907813255153703950795271232652404894983869492174481652303803498881366210508647263668376514131031102336837488999775744046733651827239395353540348414872854639719294694323450186884189822544540647226987292160693184734654941906936646576130260972193280317171696418971553954161446191759093719524951116705577362073481319296041201283516154269044389257727700289684119460283480452306204130024913879981135908026983868205969318167819680850998649694416907952712904962404937775789698917207356355227455066183815847669135530549755439819480321732925869069136146085326382334628745456398071603058051634209386708703306545903199608523824513729625136659128221100967735450519952404248198262813831097374261650380017277916975324134846574681307337017380830353680623216336949471306191686438249305686413380231046096450953594089375540285037292470929395114028305547452584962074309438151825437902976012891749355198678420603722034900311364893046495761404333938686140037848030916292543273684533640032637639100774502371542479302473698388692892420946478947733800387782741417786484770190108867879778991633218628640533982619322466154883011452291890252336487236086654396093853898628805813177559162076363154436494477507871294119841637867701722166609831201845484078070518041336869808398454625586921201308185638888082699408686536045192649569198110353659943111802300636106509865023943661829436426563007917282050894429388841748885398290707743052973605359277515749619730823773215894755121761467887865327707115573804264519206349215850195195364813387526811742474131549802130246506341207020335797706780705406945275438806265978516209706795702579244075380490231741030862614968783306207869687868108423639971983209077624758080499988275591392787267627182442892809646874228263172435642368588260139161962836121481966092745325488641054238839295138992979335446110090325230955276870524611359124918392740353154294858383359");
     BigInteger base = new BigInteger("5");
@@ -118,51 +116,39 @@ public class Client implements Runnable {
     }
 
     class InputHandler implements Runnable {
-
+        private BufferedReader in;
+        private PrintWriter out;
         @Override
         public void run() {
             try {
                 perform_key_exchange();
-                String currentDirectory = System.getProperty("user.dir");
-                boolean shellMode = false;
+                BufferedReader msgReader = new BufferedReader(new InputStreamReader(System.in));
+                out = new PrintWriter(client.getOutputStream(), true);
+                in = new BufferedReader(new InputStreamReader(client.getInputStream()));
                 while (!done) {
-                    String command = decrypt(in.readLine());
-                    System.out.println(command);
-                    if (shellMode) {
-                        if (command.equals("quit")) {
-                            out.println(encrypt("UNSHELL"));
-                            shellMode = false;
-                            continue;
-                        }
-
-                        if (command.startsWith("cd ")) {
-                            String directory = command.substring("cd ".length());
-
-
-                            out.println(encrypt("CHANGE_DIR"+currentDirectory));
-                            continue;
-                        }
-                        final Process p = Runtime.getRuntime().exec(String.format("cmd.exe /c %s", command));
-
-                        BufferedReader input = new BufferedReader(new InputStreamReader(p.getInputStream()));
-                        String line;
-                        try {
-                            while ((line = input.readLine()) != null)
-                                out.println(encrypt("RESPONSE"+line));
-                        } catch (IOException e) {
-                            out.println(encrypt("ERROR"+e));
-                        }
-                        out.println(encrypt("END"));
-                    }
-                    if (command.equals("quit")) {
-                        out.println(encrypt("DISCONNECT"));
+                    System.out.print(">> ");
+                    String message = msgReader.readLine();
+                    out.println(encrypt(message));
+                    String response = decrypt(in.readLine());
+                    if (response.equals("DISCONNECT")) {
+                        System.out.println(response);
                         shutdown();
                         continue;
                     }
-                    if (command.equals("shell")) {
-                        shellMode = true;
-                        out.println(encrypt("SHELL"+currentDirectory));
+
+                    if (response.startsWith("RESPONSE")) {
+                        String line;
+                        while ((line = decrypt(in.readLine())).startsWith("RESPONSE"))
+                            System.out.println(line.substring("RESPONSE".length()));
+
+                        continue;
                     }
+
+                    if (response.startsWith("ERROR")) {
+                        System.out.println(response.substring("ERROR".length()));
+                        continue;
+                    }
+
                 }
 
             } catch(IOException e) {
